@@ -1,0 +1,6 @@
+[build]
+  publish = "public"    # change if your frontend publish folder is different (e.g. "build")
+  functions = "netlify/functions"
+
+[dev]
+  functions = "netlify/functions"
