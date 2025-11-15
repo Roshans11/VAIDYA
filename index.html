@@ -1,0 +1,328 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>VAIDYA - Demo</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    /* Minimal clean styles - extend as needed */
+    body { font-family: system-ui, Arial; margin: 0; background:#f6f8fa; color:#222; }
+    header { background:#1565c0; color:white; padding:16px; display:flex; align-items:center; justify-content:space-between;}
+    .container { padding: 20px; max-width:1000px; margin: 0 auto;}
+    .card { background:white; padding:16px; border-radius:8px; box-shadow:0 1px 6px rgba(0,0,0,0.08); margin-bottom:16px;}
+    input, select, textarea, button { padding:8px; border:1px solid #cbd5e1; border-radius:6px; font-size:14px; }
+    .flex { display:flex; gap:12px;}
+    .map { height:300px; width:100%; border-radius:8px;}
+    nav button { background:transparent; color:white; border:none; cursor:pointer; margin-left:8px;}
+    .doctor { border-left:4px solid #1565c0; padding-left:12px; margin-bottom:8px;}
+    .slot { display:inline-block; padding:6px 8px; margin:4px; background:#e6f2ff; border-radius:6px; cursor:pointer;}
+  </style>
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+  <header>
+    <div><strong>VAIDYA</strong> — Accessible healthcare</div>
+    <nav id="nav"></nav>
+  </header>
+
+  <div class="container">
+    <div id="authArea" class="card">
+      <h3>Sign in / Register</h3>
+      <div class="flex">
+        <input id="email" placeholder="Email" />
+        <input id="phone" placeholder="Phone" />
+        <select id="role">
+          <option value="patient">Patient</option>
+          <option value="doctor">Doctor</option>
+        </select>
+        <input id="password" type="password" placeholder="Password" />
+        <button id="registerBtn">Register</button>
+        <button id="loginBtn">Login</button>
+      </div>
+    </div>
+
+    <div id="mainApp" style="display:none">
+      <div id="patientDashboard" class="card" style="display:none">
+        <h3>Patient Dashboard</h3>
+        <div>
+          <label>Describe your symptoms (comma separated)</label><br/>
+          <input id="symptomsInput" style="width:80%"/>
+          <button id="askAiBtn">Get Suggestions (AI)</button>
+        </div>
+        <div id="aiResult" class="card" style="display:none;"></div>
+
+        <h4>Nearby pharmacies</h4>
+        <div id="map" class="map card"></div>
+      </div>
+
+      <div id="doctorDashboard" class="card" style="display:none">
+        <h3>Doctor Dashboard</h3>
+        <div>
+          <label>Set available slots (example: 2025-11-20:09:00,09:30)</label><br/>
+          <input id="slotsInput" placeholder="date:hh:mm,hh:mm" />
+          <button id="saveSlotsBtn">Save Slots</button>
+        </div>
+        <h4>Your bookings</h4>
+        <div id="doctorBookings"></div>
+      </div>
+    </div>
+
+    <div id="doctorsList" class="card" style="display:none">
+      <h3>Verified Doctors</h3>
+      <div id="doctorsContainer"></div>
+    </div>
+  </div>
+
+  <script>
+    // ---------- CONFIG: Replace these with your Firebase project keys ----------
+   const firebaseConfig = {
+    apiKey: "AIzaSyD9x8Y39gxGewZAFXl7DKKKMP7Q7tAsTgg",
+    authDomain: "vaidya-ca935.firebaseapp.com",
+    projectId: "vaidya-ca935",
+    storageBucket: "vaidya-ca935.firebasestorage.app",
+    messagingSenderId: "612534206422",
+    appId: "1:612534206422:web:325e6af9bc30aa358cae77",
+    measurementId: "G-RJVYKP6ZDM"
+  };
+    
+    // Replace the previous firebase CF_BASE
+    const CF_BASE = "/.netlify/functions"; // then fetch(`${CF_BASE}/ai-suggest`)
+
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    // Element refs
+    const registerBtn = document.getElementById('registerBtn');
+    const loginBtn = document.getElementById('loginBtn');
+    const nav = document.getElementById('nav');
+    const authArea = document.getElementById('authArea');
+    const mainApp = document.getElementById('mainApp');
+    const patientDash = document.getElementById('patientDashboard');
+    const doctorDash = document.getElementById('doctorDashboard');
+    const doctorsList = document.getElementById('doctorsList');
+    const doctorsContainer = document.getElementById('doctorsContainer');
+
+    // Auth flows
+    registerBtn.onclick = async () => {
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      const phone = document.getElementById('phone').value.trim();
+      const role = document.getElementById('role').value;
+      if (!email || !password) return alert("Email and password required");
+
+      try {
+        const cred = await auth.createUserWithEmailAndPassword(email, password);
+        await cred.user.updateProfile({ displayName: email.split('@')[0] });
+        // Save user doc
+        await db.collection('users').doc(cred.user.uid).set({
+          displayName: cred.user.displayName || '',
+          email,
+          phone,
+          role,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        alert("Registered — check UI");
+      } catch (err) {
+        console.error(err);
+        alert("Register error: " + err.message);
+      }
+    };
+
+    loginBtn.onclick = async () => {
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      try {
+        await auth.signInWithEmailAndPassword(email, password);
+      } catch (err) {
+        alert("Login error: " + err.message);
+      }
+    };
+
+    // Observe auth state
+    auth.onAuthStateChanged(async (user) => {
+      if (!user) {
+        authArea.style.display = '';
+        mainApp.style.display = 'none';
+        nav.innerHTML = '';
+        doctorsList.style.display = 'none';
+        return;
+      }
+      // load user doc
+      const udoc = await db.collection('users').doc(user.uid).get();
+      const profile = udoc.data() || { role: 'patient' };
+      authArea.style.display = 'none';
+      mainApp.style.display = '';
+      nav.innerHTML = `<span>Hi ${profile.displayName || user.email}</span>
+        <button onclick="logout()">Logout</button>`;
+      // show role-specific UI
+      if (profile.role === 'patient') {
+        patientDash.style.display = '';
+        doctorDash.style.display = 'none';
+        doctorsList.style.display = '';
+      } else if (profile.role === 'doctor') {
+        patientDash.style.display = 'none';
+        doctorDash.style.display = '';
+        doctorsList.style.display = false;
+        loadDoctorBookings(user.uid);
+      } else {
+        patientDash.style.display = '';
+      }
+      loadDoctorsList();
+      initMap(); // load map and nearby pharmacies
+    });
+
+    window.logout = async () => { await auth.signOut(); location.reload(); };
+
+    // ---------- AI Request ----------
+    document.getElementById('askAiBtn').onclick = async () => {
+      const raw = document.getElementById('symptomsInput').value.trim();
+      if (!raw) return alert("Enter symptoms");
+      const symptoms = raw.split(',').map(s=>s.trim()).filter(Boolean);
+      const idToken = await auth.currentUser.getIdToken(/* forceRefresh */ true);
+      document.getElementById('aiResult').style.display = '';
+      document.getElementById('aiResult').innerText = 'Thinking...';
+      try {
+        const r = await fetch(CF_BASE + '/ai/suggest', {
+          method: 'POST',
+          headers: { 'Content-Type':'application/json', Authorization: 'Bearer ' + idToken },
+          body: JSON.stringify({ symptoms })
+        });
+        const json = await r.json();
+        if (json.error) throw new Error(json.error);
+        document.getElementById('aiResult').innerHTML = `<h4>AI Suggestions</h4><pre style="white-space:pre-wrap">${json.aiText}</pre>`;
+        // Show related doctors if returned
+        if (json.relatedDoctors && json.relatedDoctors.length) {
+          const html = json.relatedDoctors.map(d=>`
+            <div class="doctor">
+              <strong>${d.name}</strong> — ${d.specialty} <br/>
+              Phone: ${d.phone} <br/>
+              <button onclick='bookDoctor("${d.id}")'>Book</button>
+            </div>`).join('');
+          document.getElementById('aiResult').innerHTML += `<h4>Related doctors</h4>${html}`;
+        }
+      } catch (err) {
+        console.error(err);
+        alert("AI error: " + err.message);
+      }
+    };
+
+    // ---------- Doctors list & booking ----------
+    async function loadDoctorsList() {
+      const snap = await db.collection('doctors').where('verified','==',true).limit(50).get();
+      doctorsContainer.innerHTML = snap.docs.map(d=> {
+        const data = d.data();
+        return `<div class="doctor card">
+          <strong>${data.name}</strong> — ${data.specialty}<br/>Phone: ${data.phone}<br/>
+          <button onclick='bookDoctor("${d.id}")'>Book</button>
+        </div>`;
+      }).join('') || '<p>No verified doctors yet.</p>';
+      doctorsList.style.display = '';
+    }
+
+    window.bookDoctor = async (docId) => {
+      const user = auth.currentUser;
+      if (!user) return alert("Login first");
+      // Fetch doctor doc and show simple slot pick
+      const docSnap = await db.collection('doctors').doc(docId).get();
+      const doc = docSnap.data();
+      if (!doc || !doc.slots) return alert("No slots available");
+      // Find first available slot
+      let date = Object.keys(doc.slots)[0];
+      let time = doc.slots[date][0];
+      if (!date || !time) return alert("No slots");
+      // Create booking (a real app should show UI to pick)
+      await db.runTransaction(async (tx) => {
+        const dref = db.collection('doctors').doc(docId);
+        const ddoc = await tx.get(dref);
+        const slots = ddoc.data().slots || {};
+        // remove chosen slot
+        const daySlots = slots[date];
+        if (!daySlots || !daySlots.includes(time)) throw "Slot gone";
+        const newDaySlots = daySlots.filter(s=>s !== time);
+        slots[date] = newDaySlots;
+        tx.update(dref, { slots });
+        const bookingRef = db.collection('bookings').doc();
+        tx.set(bookingRef, {
+          userId: user.uid,
+          doctorId: docId,
+          date, time, status: "booked",
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      });
+      alert("Booked " + date + " " + time);
+    };
+
+    // Doctor: save slots
+    document.getElementById('saveSlotsBtn').onclick = async () => {
+      const raw = document.getElementById('slotsInput').value.trim();
+      if (!raw) return alert("Enter slots");
+      // format date:hh:mm,hh:mm  e.g. 2025-11-20:09:00,09:30
+      const [datePart, times] = raw.split(':');
+      const timesArr = times.split(',').map(t=>t.trim());
+      const user = auth.currentUser;
+      const udoc = await db.collection('users').doc(user.uid).get();
+      const doctorId = udoc.data().doctorId;
+      if (!doctorId) return alert("Doctor profile not set");
+      await db.collection('doctors').doc(doctorId).set({
+        slots: { [datePart]: timesArr }
+      }, { merge: true });
+      alert("Saved slots");
+    };
+
+    async function loadDoctorBookings(uid) {
+      // find doctorId for user
+      const udoc = await db.collection('users').doc(uid).get();
+      const docId = udoc.data().doctorId;
+      if (!docId) return;
+      const snap = await db.collection('bookings').where('doctorId','==',docId).get();
+      const el = document.getElementById('doctorBookings');
+      el.innerHTML = snap.docs.map(b => {
+        const d = b.data();
+        return `<div class="card">Patient: ${d.userId} — ${d.date} ${d.time} — ${d.status}</div>`;
+      }).join('');
+    }
+
+    // ---------- Map & nearby pharmacies (Google Maps Places) ----------
+    let map;
+    function initMap() {
+      // Insert Google Maps script dynamically
+      if (window.google && window.google.maps) return initMapOnce();
+      const script = document.createElement('script');
+      script.src = `https://maps.googleapis.com/maps/api/js?key=REPLACE_GOOGLE_MAPS_KEY&libraries=places&callback=initMapOnce`;
+      script.async = true;
+      document.head.appendChild(script);
+    }
+    window.initMapOnce = async function() {
+      try {
+        const mapEl = document.getElementById('map');
+        mapEl.innerHTML = '';
+        // try geolocation
+        const pos = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(p => resolve(p.coords), err => reject(err));
+        });
+        const center = { lat: pos.latitude, lng: pos.longitude };
+        map = new google.maps.Map(document.getElementById('map'), { center, zoom: 14 });
+        new google.maps.Marker({ position: center, map, title: "You are here" });
+
+        // Search for nearby pharmacies
+        const service = new google.maps.places.PlacesService(map);
+        service.nearbySearch({ location: center, radius: 3000, type: ['pharmacy'] }, (results, status) => {
+          if (status !== google.maps.places.PlacesServiceStatus.OK) return;
+          results.forEach(place => {
+            const marker = new google.maps.Marker({ position: place.geometry.location, map, title: place.name });
+            const infowindow = new google.maps.InfoWindow({ content: `<strong>${place.name}</strong><br/>${place.vicinity}` });
+            marker.addListener('click', () => infowindow.open(map, marker));
+          });
+        });
+      } catch (err) {
+        document.getElementById('map').innerText = "Could not load location. Allow location permission or try later.";
+      }
+    };
+  </script>
+</body>
+</html>
