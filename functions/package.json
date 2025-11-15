@@ -1,3 +1,5 @@
+
+
 {
   "name": "functions",
   "description": "Cloud Functions for Firebase",
@@ -20,7 +22,8 @@
   "devDependencies": {
     "eslint": "^8.15.0",
     "eslint-config-google": "^0.14.0",
-    "firebase-functions-test": "^3.1.0"
+    "firebase-functions-test": "^3.1.0",
+    "node-fetch": "^3.3.2"
   },
   "private": true
 }
