@@ -11,13 +11,15 @@
     .container { padding: 20px; max-width:1000px; margin: 0 auto;}
     .card { background:white; padding:16px; border-radius:8px; box-shadow:0 1px 6px rgba(0,0,0,0.08); margin-bottom:16px;}
     input, select, textarea, button { padding:8px; border:1px solid #cbd5e1; border-radius:6px; font-size:14px; }
-    .flex { display:flex; gap:12px;}
+    .flex { display:flex; gap:12px; flex-wrap:wrap; }
     .map { height:300px; width:100%; border-radius:8px;}
     nav button { background:transparent; color:white; border:none; cursor:pointer; margin-left:8px;}
     .doctor { border-left:4px solid #1565c0; padding-left:12px; margin-bottom:8px;}
     .slot { display:inline-block; padding:6px 8px; margin:4px; background:#e6f2ff; border-radius:6px; cursor:pointer;}
+    pre { white-space: pre-wrap; word-wrap: break-word; }
   </style>
-  <!-- Firebase SDKs -->
+
+  <!-- Firebase SDKs (compat for simple examples) -->
   <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore-compat.js"></script>
@@ -42,6 +44,7 @@
         <button id="registerBtn">Register</button>
         <button id="loginBtn">Login</button>
       </div>
+      <p style="margin-top:8px;color:#555;font-size:13px;">Note: Make sure Email/Password sign-in is enabled in Firebase Console.</p>
     </div>
 
     <div id="mainApp" style="display:none">
@@ -55,7 +58,7 @@
         <div id="aiResult" class="card" style="display:none;"></div>
 
         <h4>Nearby pharmacies</h4>
-        <div id="map" class="map card"></div>
+        <div id="map" class="map card">Map will load after you allow location (and replace the Google Maps API key).</div>
       </div>
 
       <div id="doctorDashboard" class="card" style="display:none">
@@ -78,238 +81,298 @@
 
   <script>
     // ---------- CONFIG: Replace these with your Firebase project keys ----------
-   const firebaseConfig = {
-    apiKey: "AIzaSyD9x8Y39gxGewZAFXl7DKKKMP7Q7tAsTgg",
-    authDomain: "vaidya-ca935.firebaseapp.com",
-    projectId: "vaidya-ca935",
-    storageBucket: "vaidya-ca935.firebasestorage.app",
-    messagingSenderId: "612534206422",
-    appId: "1:612534206422:web:325e6af9bc30aa358cae77",
-    measurementId: "G-RJVYKP6ZDM"
-  };
-    
-    // Replace the previous firebase CF_BASE
-    const CF_BASE = "/.netlify/functions"; // then fetch(`${CF_BASE}/ai-suggest`)
+    // I fixed a safe storageBucket default — if yours is different, keep the console value.
+    const firebaseConfig = {
+      apiKey: "AIzaSyD9x8Y39gxGewZAFXl7DKKKMP7Q7tAsTgg",
+      authDomain: "vaidya-ca935.firebaseapp.com",
+      projectId: "vaidya-ca935",
+      storageBucket: "vaidya-ca935.appspot.com",
+      messagingSenderId: "612534206422",
+      appId: "1:612534206422:web:325e6af9bc30aa358cae77",
+      measurementId: "G-RJVYKP6ZDM"
+    };
 
+    // Replace with your deployed function base if not using Netlify functions locally
+    // Example Netlify dev endpoint: '/.netlify/functions'
+    // Example Firebase CF: 'https://us-central1-YOUR_PROJECT.cloudfunctions.net/api'
+    const CF_BASE = "/.netlify/functions";
 
-    firebase.initializeApp(firebaseConfig);
+    // Replace this Google Maps key in the initMap function below
+    const GOOGLE_MAPS_KEY = "REPLACE_GOOGLE_MAPS_KEY";
+
+    // Initialize Firebase
+    try {
+      firebase.initializeApp(firebaseConfig);
+    } catch (e) {
+      console.error("Firebase init failed:", e);
+      alert("Firebase initialization failed. Check the console for details.");
+    }
+
     const auth = firebase.auth();
     const db = firebase.firestore();
 
-    // Element refs
-    const registerBtn = document.getElementById('registerBtn');
-    const loginBtn = document.getElementById('loginBtn');
-    const nav = document.getElementById('nav');
-    const authArea = document.getElementById('authArea');
-    const mainApp = document.getElementById('mainApp');
-    const patientDash = document.getElementById('patientDashboard');
-    const doctorDash = document.getElementById('doctorDashboard');
-    const doctorsList = document.getElementById('doctorsList');
-    const doctorsContainer = document.getElementById('doctorsContainer');
+    // Element refs (guarded)
+    const $ = id => document.getElementById(id);
+    const registerBtn = $('registerBtn');
+    const loginBtn = $('loginBtn');
+    const nav = $('nav');
+    const authArea = $('authArea');
+    const mainApp = $('mainApp');
+    const patientDash = $('patientDashboard');
+    const doctorDash = $('doctorDashboard');
+    const doctorsList = $('doctorsList');
+    const doctorsContainer = $('doctorsContainer');
 
-    // Auth flows
-    registerBtn.onclick = async () => {
-      const email = document.getElementById('email').value.trim();
-      const password = document.getElementById('password').value;
-      const phone = document.getElementById('phone').value.trim();
-      const role = document.getElementById('role').value;
-      if (!email || !password) return alert("Email and password required");
+    // Utility: show / hide
+    const show = (el) => { if (el) el.style.display = ''; }
+    const hide = (el) => { if (el) el.style.display = 'none'; }
 
-      try {
-        const cred = await auth.createUserWithEmailAndPassword(email, password);
-        await cred.user.updateProfile({ displayName: email.split('@')[0] });
-        // Save user doc
-        await db.collection('users').doc(cred.user.uid).set({
-          displayName: cred.user.displayName || '',
-          email,
-          phone,
-          role,
-          createdAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-        alert("Registered — check UI");
-      } catch (err) {
-        console.error(err);
-        alert("Register error: " + err.message);
-      }
-    };
+    // Prevent default form behaviour if button is inside a form
+    [registerBtn, loginBtn].forEach(b => { if (b) b.addEventListener('click', e => e.preventDefault()); });
 
-    loginBtn.onclick = async () => {
-      const email = document.getElementById('email').value.trim();
-      const password = document.getElementById('password').value;
-      try {
-        await auth.signInWithEmailAndPassword(email, password);
-      } catch (err) {
-        alert("Login error: " + err.message);
-      }
-    };
+    // Register flow
+    if (registerBtn) {
+      registerBtn.addEventListener('click', async () => {
+        const email = ($('email')?.value || '').trim();
+        const password = ($('password')?.value || '').trim();
+        const phone = ($('phone')?.value || '').trim();
+        const role = ($('role')?.value || 'patient');
+        if (!email || !password) return alert("Email and password required for registration.");
+
+        try {
+          const cred = await auth.createUserWithEmailAndPassword(email, password);
+          await cred.user.updateProfile({ displayName: email.split('@')[0] });
+          await db.collection('users').doc(cred.user.uid).set({
+            displayName: cred.user.displayName || '',
+            email, phone, role, createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+          alert("Registered and signed in.");
+        } catch (err) {
+          console.error("Register error:", err);
+          alert("Register error: " + (err.message || err));
+        }
+      });
+    }
+
+    // Login flow
+    if (loginBtn) {
+      loginBtn.addEventListener('click', async () => {
+        const email = ($('email')?.value || '').trim();
+        const password = ($('password')?.value || '').trim();
+        if (!email || !password) return alert("Enter email and password to login.");
+
+        try {
+          const cred = await auth.signInWithEmailAndPassword(email, password);
+          console.log("Logged in:", cred.user.uid);
+          alert("Login successful.");
+        } catch (err) {
+          console.error("Login error:", err);
+          alert("Login error: " + (err.message || err));
+        }
+      });
+    }
 
     // Observe auth state
     auth.onAuthStateChanged(async (user) => {
       if (!user) {
-        authArea.style.display = '';
-        mainApp.style.display = 'none';
+        show(authArea);
+        hide(mainApp);
         nav.innerHTML = '';
-        doctorsList.style.display = 'none';
+        hide(doctorsList);
         return;
       }
-      // load user doc
-      const udoc = await db.collection('users').doc(user.uid).get();
-      const profile = udoc.data() || { role: 'patient' };
-      authArea.style.display = 'none';
-      mainApp.style.display = '';
-      nav.innerHTML = `<span>Hi ${profile.displayName || user.email}</span>
-        <button onclick="logout()">Logout</button>`;
-      // show role-specific UI
-      if (profile.role === 'patient') {
-        patientDash.style.display = '';
-        doctorDash.style.display = 'none';
-        doctorsList.style.display = '';
-      } else if (profile.role === 'doctor') {
-        patientDash.style.display = 'none';
-        doctorDash.style.display = '';
-        doctorsList.style.display = false;
-        loadDoctorBookings(user.uid);
-      } else {
-        patientDash.style.display = '';
+
+      // load user doc if exists
+      let profile = { role: 'patient', displayName: user.email.split('@')[0] };
+      try {
+        const udoc = await db.collection('users').doc(user.uid).get();
+        if (udoc.exists) profile = { ...profile, ...udoc.data() };
+      } catch (e) {
+        console.warn("Could not load user doc:", e);
       }
-      loadDoctorsList();
-      initMap(); // load map and nearby pharmacies
+
+      hide(authArea);
+      show(mainApp);
+      nav.innerHTML = `<span>Hi ${profile.displayName || user.email}</span> <button onclick="logout()">Logout</button>`;
+
+      if (profile.role === 'patient') {
+        show(patientDash); hide(doctorDash); show(doctorsList);
+      } else if (profile.role === 'doctor') {
+        hide(patientDash); show(doctorDash); hide(doctorsList);
+        loadDoctorBookings(user.uid).catch(e => console.warn(e));
+      } else {
+        show(patientDash);
+      }
+
+      loadDoctorsList().catch(e => console.warn(e));
+      // attempt to init map (will warn if key not replaced)
+      initMap();
     });
 
-    window.logout = async () => { await auth.signOut(); location.reload(); };
+    window.logout = async () => { try { await auth.signOut(); location.reload(); } catch (e) { console.warn(e); } };
 
     // ---------- AI Request ----------
-    document.getElementById('askAiBtn').onclick = async () => {
-      const raw = document.getElementById('symptomsInput').value.trim();
-      if (!raw) return alert("Enter symptoms");
-      const symptoms = raw.split(',').map(s=>s.trim()).filter(Boolean);
-      const idToken = await auth.currentUser.getIdToken(/* forceRefresh */ true);
-      document.getElementById('aiResult').style.display = '';
-      document.getElementById('aiResult').innerText = 'Thinking...';
-      try {
-        const r = await fetch(CF_BASE + '/ai/suggest', {
-          method: 'POST',
-          headers: { 'Content-Type':'application/json', Authorization: 'Bearer ' + idToken },
-          body: JSON.stringify({ symptoms })
-        });
-        const json = await r.json();
-        if (json.error) throw new Error(json.error);
-        document.getElementById('aiResult').innerHTML = `<h4>AI Suggestions</h4><pre style="white-space:pre-wrap">${json.aiText}</pre>`;
-        // Show related doctors if returned
-        if (json.relatedDoctors && json.relatedDoctors.length) {
-          const html = json.relatedDoctors.map(d=>`
-            <div class="doctor">
-              <strong>${d.name}</strong> — ${d.specialty} <br/>
-              Phone: ${d.phone} <br/>
-              <button onclick='bookDoctor("${d.id}")'>Book</button>
-            </div>`).join('');
-          document.getElementById('aiResult').innerHTML += `<h4>Related doctors</h4>${html}`;
+    const askAiBtn = $('askAiBtn');
+    if (askAiBtn) {
+      askAiBtn.addEventListener('click', async () => {
+        const raw = ($('symptomsInput')?.value || '').trim();
+        if (!raw) return alert("Enter symptoms");
+        const symptoms = raw.split(',').map(s=>s.trim()).filter(Boolean);
+        try {
+          const idToken = await auth.currentUser.getIdToken(true);
+          const aiResultEl = $('aiResult');
+          aiResultEl.style.display = '';
+          aiResultEl.innerText = 'Thinking...';
+
+          const r = await fetch(`${CF_BASE}/ai-suggest`, {
+            method: 'POST',
+            headers: { 'Content-Type':'application/json', 'Authorization': 'Bearer ' + idToken },
+            body: JSON.stringify({ symptoms })
+          });
+
+          if (!r.ok) {
+            const text = await r.text();
+            console.error("AI request failed:", r.status, text);
+            throw new Error(text || "AI request failed");
+          }
+
+          const json = await r.json();
+          if (json.error) throw new Error(json.error);
+          aiResultEl.innerHTML = `<h4>AI Suggestions</h4><pre>${json.aiText || JSON.stringify(json, null, 2)}</pre>`;
+
+          if (json.relatedDoctors && json.relatedDoctors.length) {
+            const html = json.relatedDoctors.map(d=>`
+              <div class="doctor">
+                <strong>${d.name}</strong> — ${d.specialty || 'N/A'} <br/>
+                Phone: ${d.phone || 'N/A'} <br/>
+                <button onclick='bookDoctor("${d.id}")'>Book</button>
+              </div>`).join('');
+            aiResultEl.innerHTML += `<h4>Related doctors</h4>${html}`;
+          }
+        } catch (err) {
+          console.error(err);
+          alert("AI error: " + (err.message || err));
         }
-      } catch (err) {
-        console.error(err);
-        alert("AI error: " + err.message);
-      }
-    };
+      });
+    }
 
     // ---------- Doctors list & booking ----------
     async function loadDoctorsList() {
-      const snap = await db.collection('doctors').where('verified','==',true).limit(50).get();
-      doctorsContainer.innerHTML = snap.docs.map(d=> {
-        const data = d.data();
-        return `<div class="doctor card">
-          <strong>${data.name}</strong> — ${data.specialty}<br/>Phone: ${data.phone}<br/>
-          <button onclick='bookDoctor("${d.id}")'>Book</button>
-        </div>`;
-      }).join('') || '<p>No verified doctors yet.</p>';
-      doctorsList.style.display = '';
+      try {
+        const snap = await db.collection('doctors').where('verified','==',true).limit(50).get();
+        const html = snap.docs.map(d=> {
+          const data = d.data();
+          return `<div class="doctor card">
+            <strong>${data.name || 'Unnamed'}</strong> — ${data.specialty || ''}<br/>Phone: ${data.phone || ''}<br/>
+            <button onclick='bookDoctor("${d.id}")'>Book</button>
+          </div>`;
+        }).join('');
+        doctorsContainer.innerHTML = html || '<p>No verified doctors yet.</p>';
+        show(doctorsList);
+      } catch (e) {
+        console.warn("loadDoctorsList error:", e);
+      }
     }
 
     window.bookDoctor = async (docId) => {
       const user = auth.currentUser;
       if (!user) return alert("Login first");
-      // Fetch doctor doc and show simple slot pick
-      const docSnap = await db.collection('doctors').doc(docId).get();
-      const doc = docSnap.data();
-      if (!doc || !doc.slots) return alert("No slots available");
-      // Find first available slot
-      let date = Object.keys(doc.slots)[0];
-      let time = doc.slots[date][0];
-      if (!date || !time) return alert("No slots");
-      // Create booking (a real app should show UI to pick)
-      await db.runTransaction(async (tx) => {
-        const dref = db.collection('doctors').doc(docId);
-        const ddoc = await tx.get(dref);
-        const slots = ddoc.data().slots || {};
-        // remove chosen slot
-        const daySlots = slots[date];
-        if (!daySlots || !daySlots.includes(time)) throw "Slot gone";
-        const newDaySlots = daySlots.filter(s=>s !== time);
-        slots[date] = newDaySlots;
-        tx.update(dref, { slots });
-        const bookingRef = db.collection('bookings').doc();
-        tx.set(bookingRef, {
-          userId: user.uid,
-          doctorId: docId,
-          date, time, status: "booked",
-          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      try {
+        const docSnap = await db.collection('doctors').doc(docId).get();
+        const doc = docSnap.data();
+        if (!doc || !doc.slots) return alert("No slots available");
+        let date = Object.keys(doc.slots)[0];
+        let time = doc.slots[date][0];
+        if (!date || !time) return alert("No slots");
+        await db.runTransaction(async (tx) => {
+          const dref = db.collection('doctors').doc(docId);
+          const ddoc = await tx.get(dref);
+          const slots = ddoc.data().slots || {};
+          const daySlots = slots[date];
+          if (!daySlots || !daySlots.includes(time)) throw "Slot gone";
+          const newDaySlots = daySlots.filter(s=>s !== time);
+          slots[date] = newDaySlots;
+          tx.update(dref, { slots });
+          const bookingRef = db.collection('bookings').doc();
+          tx.set(bookingRef, {
+            userId: user.uid,
+            doctorId: docId,
+            date, time, status: "booked",
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
         });
-      });
-      alert("Booked " + date + " " + time);
+        alert("Booked " + date + " " + time);
+      } catch (e) {
+        console.error("Booking error:", e);
+        alert("Booking failed: " + (e.message || e));
+      }
     };
 
     // Doctor: save slots
-    document.getElementById('saveSlotsBtn').onclick = async () => {
-      const raw = document.getElementById('slotsInput').value.trim();
-      if (!raw) return alert("Enter slots");
-      // format date:hh:mm,hh:mm  e.g. 2025-11-20:09:00,09:30
-      const [datePart, times] = raw.split(':');
-      const timesArr = times.split(',').map(t=>t.trim());
-      const user = auth.currentUser;
-      const udoc = await db.collection('users').doc(user.uid).get();
-      const doctorId = udoc.data().doctorId;
-      if (!doctorId) return alert("Doctor profile not set");
-      await db.collection('doctors').doc(doctorId).set({
-        slots: { [datePart]: timesArr }
-      }, { merge: true });
-      alert("Saved slots");
-    };
+    const saveSlotsBtn = $('saveSlotsBtn');
+    if (saveSlotsBtn) {
+      saveSlotsBtn.addEventListener('click', async () => {
+        const raw = ($('slotsInput')?.value || '').trim();
+        if (!raw) return alert("Enter slots");
+        const parts = raw.split(':');
+        if (parts.length < 2) return alert("Invalid format. Use date:hh:mm,hh:mm");
+        const datePart = parts.shift();
+        const times = parts.join(':'); // if time contains colon
+        const timesArr = times.split(',').map(t=>t.trim()).filter(Boolean);
+        const user = auth.currentUser;
+        if (!user) return alert("Login as a doctor to save slots");
+        const udoc = await db.collection('users').doc(user.uid).get();
+        const doctorId = udoc.data()?.doctorId;
+        if (!doctorId) return alert("Doctor profile not set");
+        await db.collection('doctors').doc(doctorId).set({ slots: { [datePart]: timesArr } }, { merge: true });
+        alert("Saved slots");
+      });
+    }
 
     async function loadDoctorBookings(uid) {
-      // find doctorId for user
-      const udoc = await db.collection('users').doc(uid).get();
-      const docId = udoc.data().doctorId;
-      if (!docId) return;
-      const snap = await db.collection('bookings').where('doctorId','==',docId).get();
-      const el = document.getElementById('doctorBookings');
-      el.innerHTML = snap.docs.map(b => {
-        const d = b.data();
-        return `<div class="card">Patient: ${d.userId} — ${d.date} ${d.time} — ${d.status}</div>`;
-      }).join('');
+      try {
+        const udoc = await db.collection('users').doc(uid).get();
+        const docId = udoc.data()?.doctorId;
+        if (!docId) return;
+        const snap = await db.collection('bookings').where('doctorId','==',docId).get();
+        const el = $('doctorBookings');
+        el.innerHTML = snap.docs.map(b => {
+          const d = b.data();
+          return `<div class="card">Patient: ${d.userId} — ${d.date} ${d.time} — ${d.status}</div>`;
+        }).join('');
+      } catch (e) {
+        console.warn("loadDoctorBookings error:", e);
+      }
     }
 
     // ---------- Map & nearby pharmacies (Google Maps Places) ----------
     let map;
     function initMap() {
-      // Insert Google Maps script dynamically
+      if (!GOOGLE_MAPS_KEY || GOOGLE_MAPS_KEY === "REPLACE_GOOGLE_MAPS_KEY") {
+        console.warn("Google Maps key not replaced. Skipping map load. Replace GOOGLE_MAPS_KEY variable in the top of the script.");
+        return;
+      }
       if (window.google && window.google.maps) return initMapOnce();
       const script = document.createElement('script');
-      script.src = `https://maps.googleapis.com/maps/api/js?key=REPLACE_GOOGLE_MAPS_KEY&libraries=places&callback=initMapOnce`;
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_KEY}&libraries=places&callback=initMapOnce`;
       script.async = true;
+      script.onerror = () => {
+        document.getElementById('map').innerText = "Failed to load Google Maps. Check key and network.";
+      };
       document.head.appendChild(script);
     }
+
     window.initMapOnce = async function() {
       try {
         const mapEl = document.getElementById('map');
         mapEl.innerHTML = '';
-        // try geolocation
         const pos = await new Promise((resolve, reject) => {
           navigator.geolocation.getCurrentPosition(p => resolve(p.coords), err => reject(err));
         });
         const center = { lat: pos.latitude, lng: pos.longitude };
-        map = new google.maps.Map(document.getElementById('map'), { center, zoom: 14 });
+        map = new google.maps.Map(mapEl, { center, zoom: 14 });
         new google.maps.Marker({ position: center, map, title: "You are here" });
 
-        // Search for nearby pharmacies
         const service = new google.maps.places.PlacesService(map);
         service.nearbySearch({ location: center, radius: 3000, type: ['pharmacy'] }, (results, status) => {
           if (status !== google.maps.places.PlacesServiceStatus.OK) return;
