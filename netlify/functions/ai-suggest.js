@@ -21,22 +21,23 @@ exports.handler = async (event) => {
 
     const prompt = `Symptoms: ${symptoms.join(', ')}. Give short possible causes and next steps.`;
 
-    const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${OPENAI_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'llama3-8b-8192', // or your chosen groq model
-        messages: [
-          { role: 'system', content: 'You are a clinical assistant.' },
-          { role: 'user', content: prompt }
-        ],
-        max_tokens: 700,
-        temperature: 0
-      })
-    });
+   const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+  method: 'POST',
+  headers: {
+    Authorization: `Bearer ${OPENAI_KEY}`,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    model: 'mixtral-8x7b-32768',   // <-- switch here
+    messages: [
+      { role: 'system', content: 'You are a clinical assistant.' },
+      { role: 'user', content: prompt }
+    ],
+    max_tokens: 700,
+    temperature: 0
+  })
+});
+
 
     const text = await resp.text();
     let json;
