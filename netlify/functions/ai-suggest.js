@@ -1,32 +1,46 @@
-import fetch from 'node-fetch';  // or use global fetch if available
+const fetch = require('node-fetch');
 
-export async function handler(event, context) {
-  const OPENAI_KEY = process.env.OPENAI_KEY;
+exports.handler = async (event, context) => {
+  try {
+    if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
 
-  if (!OPENAI_KEY) {
+    const body = JSON.parse(event.body || '{}');
+    const symptoms = body.symptoms || [];
+
+    if (!Array.isArray(symptoms) || symptoms.length === 0) {
+      return { statusCode: 400, body: JSON.stringify({ error: 'No symptoms provided' }) };
+    }
+
+    const GROQ_KEY = process.env.OPENAI_KEY; 
+    // (Rename later if needed)
+
+    if (!GROQ_KEY) return { statusCode: 500, body: JSON.stringify({ error: 'Server not configured' }) };
+
+    const prompt = `Symptoms: ${symptoms.join(', ')}. Give short possible causes and next steps.`
+
+    const resp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${GROQ_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "llama3-8b-8192",   // or any Groq model
+        messages: [
+          { role: "system", content: "You are a clinical assistant." },
+          { role: "user", content: prompt }
+        ]
+      })
+    });
+
+    const json = await resp.json();
+    const aiText = json.choices?.[0]?.message?.content || "";
+
     return {
-      statusCode: 500,
-      body: JSON.stringify({ error: "Missing API key" })
+      statusCode: 200,
+      body: JSON.stringify({ aiText })
     };
+  } catch (err) {
+    return { statusCode: 500, body: JSON.stringify({ error: err.message }) };
   }
-
-  const requestBody = JSON.parse(event.body || "{}");
-
-  const result = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${OPENAI_KEY}`
-    },
-    body: JSON.stringify({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: requestBody.prompt }]
-    })
-  });
-
-  const data = await result.json();
-  return {
-    statusCode: 200,
-    body: JSON.stringify(data)
-  };
-}
+};
