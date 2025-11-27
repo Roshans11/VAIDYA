@@ -116,6 +116,8 @@ button:hover {
 #aiResult {
   background: #e8f3ff;
   border-left: 4px solid #1565c0;
+  padding: 12px;
+  border-radius: 8px;
 }
 
 /* Flex */
@@ -128,6 +130,7 @@ button:hover {
 /* Map */
 .map {
   border-radius: 12px;
+  min-height: 260px;
 }
 
 /* Verified Doctors Section */
@@ -148,6 +151,8 @@ nav button:hover {
   background: rgba(255,255,255,0.2);
 }
 
+/* small adjustments for list items appended by JS */
+#pharmList .doctor { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:10px; }
   </style>
 
   <!-- Firebase SDKs (compat for simple examples) -->
@@ -163,31 +168,24 @@ nav button:hover {
 
   <div class="container">
     <div id="authArea" class="card">
-  <h3>Welcome to VAIDYA</h3>
-  <p style="color:#555;margin-top:-10px;margin-bottom:20px;">
-    Sign in or create an account to continue
-  </p>
+      <h3>Welcome to VAIDYA</h3>
+      <p style="color:#555;margin-top:-10px;margin-bottom:20px;">
+        Sign in or create an account to continue
+      </p>
 
-  <div style="display:flex; flex-direction:column; gap:14px;">
-    
-    <input id="email" placeholder="Email address" />
-
-    <input id="phone" placeholder="Phone number" />
-
-    <select id="role">
-      <option value="patient">Patient</option>
-      <option value="doctor">Doctor</option>
-    </select>
-
-    <input id="password" type="password" placeholder="Password" />
-
-    <div style="display:flex; gap:10px; margin-top:10px;">
-      <button id="loginBtn" style="flex:1;">Login</button>
-      <button id="registerBtn" style="flex:1;background:#0b8b53;">Register</button>
-    </div>
-
-  </div>
-</div>
+      <div style="display:flex; flex-direction:column; gap:14px;">
+        <input id="email" placeholder="Email address" />
+        <input id="phone" placeholder="Phone number" />
+        <select id="role">
+          <option value="patient">Patient</option>
+          <option value="doctor">Doctor</option>
+        </select>
+        <input id="password" type="password" placeholder="Password" />
+        <div style="display:flex; gap:10px; margin-top:10px;">
+          <button id="loginBtn" style="flex:1;">Login</button>
+          <button id="registerBtn" style="flex:1;background:#0b8b53;">Register</button>
+        </div>
+      </div>
 
       <p style="margin-top:8px;color:#555;font-size:13px;">Note: Make sure Email/Password sign-in is enabled in Firebase Console.</p>
     </div>
@@ -195,41 +193,37 @@ nav button:hover {
     <div id="mainApp" style="display:none">
       <div id="patientDashboard" class="card" style="display:none">
         <h3>Patient Dashboard</h3>
-        
 
-<p style="color:#444;margin-top:-10px;">
-  Describe your symptoms and get instant smart suggestions.
-</p>
+        <p style="color:#444;margin-top:-10px;">
+          Describe your symptoms and get instant smart suggestions.
+        </p>
 
-<div style="display:flex; gap:12px; margin-top:14px;">
-  <input id="symptomsInput" placeholder="e.g. fever, cough, headache" style="flex:1;">
-  <button id="askAiBtn">Ask AI</button>
-</div>
+        <div style="display:flex; gap:12px; margin-top:14px;">
+          <input id="symptomsInput" placeholder="e.g. fever, cough, headache" style="flex:1;">
+          <button id="askAiBtn">Ask AI</button>
+        </div>
 
-<div id="aiResult" class="card" style="display:none;margin-top:20px;"></div>
+        <div id="aiResult" class="card" style="display:none;margin-top:20px;"></div>
 
-        <div id="aiResult" class="card" style="display:none;"></div>
-
-        <h4>Nearby pharmacies</h4>
+        <h4 style="margin-top:18px">Nearby pharmacies</h4>
         <div id="map" class="map card">Map will load after you allow location (and replace the Google Maps API key).</div>
+        <!-- optional pharmacy list (script will create if needed) -->
+        <div id="pharmList"></div>
       </div>
 
       <div id="doctorDashboard" class="card" style="display:none">
         <h3>Doctor Dashboard</h3>
 
-<p style="color:#444;margin-top:-10px;">
-  Update your available consultation slots.
-</p>
+        <p style="color:#444;margin-top:-10px;">
+          Update your available consultation slots.
+        </p>
 
-<div style="display:flex; gap:12px; margin-top:14px;">
-  <input id="slotsInput" placeholder="2025-11-20:10:00,10:30,11:00" style="flex:1;">
-  <button id="saveSlotsBtn">Save</button>
-</div>
+        <div style="display:flex; gap:12px; margin-top:14px;">
+          <input id="slotsInput" placeholder="2025-11-20:10:00,10:30,11:00" style="flex:1;">
+          <button id="saveSlotsBtn">Save</button>
+        </div>
 
-<h4 style="margin-top:20px;">Your Bookings</h4>
-<div id="doctorBookings"></div>
-
-        <h4>Your bookings</h4>
+        <h4 style="margin-top:20px;">Your bookings</h4>
         <div id="doctorBookings"></div>
       </div>
     </div>
@@ -242,7 +236,6 @@ nav button:hover {
 
   <script>
     // ---------- CONFIG: Replace these with your Firebase project keys ----------
-    // I fixed a safe storageBucket default — if yours is different, keep the console value.
     const firebaseConfig = {
       apiKey: "AIzaSyD9x8Y39gxGewZAFXl7DKKKMP7Q7tAsTgg",
       authDomain: "vaidya-ca935.firebaseapp.com",
@@ -253,199 +246,19 @@ nav button:hover {
       measurementId: "G-RJVYKP6ZDM"
     };
 
-    // Replace with your deployed function base if not using Netlify functions locally
-    // Example Netlify dev endpoint: '/.netlify/functions'
-    // Example Firebase CF: 'https://us-central1-YOUR_PROJECT.cloudfunctions.net/api'
-    const CF_BASE = "/.netlify/functions";
+    // Your serverless function base (Netlify or Firebase)
+    const CF_BASE = "/.netlify/functions"; // keep as-is
 
-    // Replace this Google Maps key in the initMap function below
-    //const GOOGLE_MAPS_KEY = "REPLACE_GOOGLE_MAPS_KEY";
-   
-/* Demo-friendly map loader:
-   - Shows a demo SVG image when key is missing
-   - If key exists, loads the live Google Maps + Places flow via initMapOnce()
-   - Shows a "Load live map" button on demo so you can try real map later.
-*/
-
-function initMap() {
-  // if no key (or placeholder), show demo
-  if (!GOOGLE_MAPS_KEY || GOOGLE_MAPS_KEY === "REPLACE_GOOGLE_MAPS_KEY") {
-    showDemoMap();
-    return;
-  }
-  // if google object already loaded, just call the initializer
-  if (window.google && window.google.maps) return initMapOnce();
-  // otherwise dynamically load script
-  const s = document.createElement('script');
-  s.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_KEY}&libraries=places&callback=initMapOnce`;
-  s.async = true; s.defer = true;
-  s.onerror = () => {
-    // If script fails, fallback to demo
-    console.error('Google Maps script load failed');
-    showDemoMap();
-  };
-  document.head.appendChild(s);
-}
-
-window.initMapOnce = async function() {
-  // Keep your existing implementation here (unchanged)
-  // I assume you already have a working initMapOnce in your code.
-  // If you had the previous initMapOnce defined, leave it as-is.
-  try {
-    // If you have a previously defined initMapOnce, this will call that implementation.
-    // If not, create a minimal map so page doesn't break:
-    const mapEl = document.getElementById('map');
-    if (!mapEl) return;
-    // If a previous implementation exists on this same page, run it.
-    if (typeof window.__VAIDYA_existing_initMapOnce === 'function') {
-      return window.__VAIDYA_existing_initMapOnce();
-    }
-
-    // Minimal fallback behaviour (basic map with center at a sensible default)
-    mapEl.innerHTML = '';
-    const center = { lat: 28.6139, lng: 77.2090 }; // New Delhi fallback
-    const map = new google.maps.Map(mapEl, { center, zoom: 13 });
-    new google.maps.Marker({ position: center, map, title: 'Default location' });
-  } catch (e) {
-    console.warn('initMapOnce error, showing demo', e);
-    showDemoMap();
-  }
-};
-
-// Save existing initMapOnce implementation (if you had one earlier in code)
-// This lets the replacement above call the original implementation instead of the fallback.
-// If you don't have a previous implementation, this line is harmless.
-if (typeof window.initMapOnce === 'function') {
-  window.__VAIDYA_existing_initMapOnce = window.initMapOnce;
-}
-
-/* Demo map rendering: inline SVG to avoid external resources.
-   Nice-looking placeholder, clickable "Load live map" button that attempts to load the real map.
-*/
-function showDemoMap() {
-  const mapEl = document.getElementById('map');
-  if (!mapEl) return;
-  mapEl.innerHTML = ''; // clear
-
-  // container
-  const wrap = document.createElement('div');
-  wrap.style.position = 'relative';
-  wrap.style.borderRadius = getComputedStyle(mapEl).borderRadius || '8px';
-  wrap.style.overflow = 'hidden';
-  wrap.style.minHeight = '260px';
-  wrap.style.display = 'flex';
-  wrap.style.alignItems = 'center';
-  wrap.style.justifyContent = 'center';
-  wrap.style.background = 'linear-gradient(180deg,#e9f2ff,#f8fbff)';
-
-  // SVG Demo (simple vector map with pins)
-  const svg = `<svg width="100%" height="320" viewBox="0 0 1200 400" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">
-    <defs>
-      <linearGradient id="g1" x1="0" x2="0" y1="0" y2="1">
-        <stop offset="0" stop-color="#dbeeff"/><stop offset="1" stop-color="#f8fbff"/>
-      </linearGradient>
-      <filter id="s" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="6" stdDeviation="12" flood-color="#000" flood-opacity="0.08"/></filter>
-    </defs>
-    <rect width="100%" height="100%" fill="url(#g1)"/>
-    <!-- stylized roads -->
-    <g stroke="#cde4ff" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.95">
-      <path d="M40 300 C 180 220, 320 330, 460 260 S 740 190, 900 250" />
-      <path d="M60 190 C 220 120, 400 180, 600 140 S 980 80, 1140 120" />
-    </g>
-    <!-- blocks -->
-    <g fill="#fff" opacity="0.9">
-      <rect x="80" y="60" width="120" height="80" rx="8" fill="#ffffff" />
-      <rect x="280" y="120" width="140" height="100" rx="10" fill="#ffffff" />
-      <rect x="520" y="70" width="180" height="120" rx="12" fill="#ffffff" />
-      <rect x="840" y="130" width="160" height="90" rx="10" fill="#ffffff" />
-    </g>
-    <!-- demo pins -->
-    <g fill="#e53935" transform="translate(0,0)">
-      <g transform="translate(160,210)">
-        <path d="M12 0 C 5.4 0 0 5.4 0 12 C 0 22 12 36 12 36 C 12 36 24 22 24 12 C24 5.4 18.6 0 12 0 Z" />
-        <circle cx="12" cy="12" r="5" fill="#fff"/>
-      </g>
-      <g transform="translate(560,160)">
-        <path d="M12 0 C 5.4 0 0 5.4 0 12 C 0 22 12 36 12 36 C 12 36 24 22 24 12 C24 5.4 18.6 0 12 0 Z" />
-        <circle cx="12" cy="12" r="5" fill="#fff"/>
-      </g>
-      <g transform="translate(980,220)">
-        <path d="M12 0 C 5.4 0 0 5.4 0 12 C 0 22 12 36 12 36 C 12 36 24 22 24 12 C24 5.4 18.6 0 12 0 Z" />
-        <circle cx="12" cy="12" r="5" fill="#fff"/>
-      </g>
-    </g>
-    <!-- label -->
-    <g transform="translate(40,330)" fill="#0f1724" font-family="Inter,Arial" font-size="18">
-      <text x="0" y="0">Nearby pharmacies (demo)</text>
-    </g>
-  </svg>`;
-
-  const svgWrap = document.createElement('div');
-  svgWrap.style.width = '100%';
-  svgWrap.style.maxWidth = '100%';
-  svgWrap.style.boxSizing = 'border-box';
-  svgWrap.style.padding = '12px';
-  svgWrap.innerHTML = svg;
-
-  // overlay control: load live map
-  const control = document.createElement('div');
-  control.style.position = 'absolute';
-  control.style.right = '12px';
-  control.style.top = '12px';
-  control.style.zIndex = 20;
-  control.style.display = 'flex';
-  control.style.gap = '8px';
-  control.style.alignItems = 'center';
-
-  const liveBtn = document.createElement('button');
-  liveBtn.textContent = 'Load live map';
-  liveBtn.style.background = '#1565c0';
-  liveBtn.style.color = 'white';
-  liveBtn.style.border = 'none';
-  liveBtn.style.padding = '8px 10px';
-  liveBtn.style.borderRadius = '8px';
-  liveBtn.style.cursor = 'pointer';
-  liveBtn.style.boxShadow = '0 6px 18px rgba(21,101,192,0.15)';
-  liveBtn.onclick = () => {
-    // try to load real map (calls initMap again)
-    if (!GOOGLE_MAPS_KEY || GOOGLE_MAPS_KEY === "REPLACE_GOOGLE_MAPS_KEY") {
-      alert('No Google Maps key found. Set GOOGLE_MAPS_KEY to load live map.');
-      return;
-    }
-    // attempt to load script (call the normal initMap)
-    initMap();
-  };
-
-  const info = document.createElement('div');
-  info.style.background = 'rgba(255,255,255,0.9)';
-  info.style.padding = '8px 10px';
-  info.style.borderRadius = '8px';
-  info.style.fontSize = '13px';
-  info.style.color = '#0f1724';
-  info.textContent = 'Demo mode';
-
-  control.appendChild(info);
-  control.appendChild(liveBtn);
-
-  wrap.appendChild(svgWrap);
-  wrap.appendChild(control);
-  mapEl.appendChild(wrap);
-}
-
-
+    // Google Maps key — set to your key to load live map.
+    // Replace the string below with your real key. For demo keep the placeholder.
+    const GOOGLE_MAPS_KEY = "REPLACE_GOOGLE_MAPS_KEY";
 
     // Initialize Firebase
-    try {
-      firebase.initializeApp(firebaseConfig);
-    } catch (e) {
-      console.error("Firebase init failed:", e);
-      alert("Firebase initialization failed. Check the console for details.");
-    }
-
+    try { firebase.initializeApp(firebaseConfig); } catch(e) { console.error("Firebase init failed:", e); alert("Firebase init failed - check console"); }
     const auth = firebase.auth();
     const db = firebase.firestore();
 
-    // Element refs (guarded)
+    // UI helpers & refs
     const $ = id => document.getElementById(id);
     const registerBtn = $('registerBtn');
     const loginBtn = $('loginBtn');
@@ -456,13 +269,195 @@ function showDemoMap() {
     const doctorDash = $('doctorDashboard');
     const doctorsList = $('doctorsList');
     const doctorsContainer = $('doctorsContainer');
+    const aiResultEl = $('aiResult');
 
-    // Utility: show / hide
-    const show = (el) => { if (el) el.style.display = ''; }
-    const hide = (el) => { if (el) el.style.display = 'none'; }
+    const show = el => { if (el) el.style.display = ''; }
+    const hide = el => { if (el) el.style.display = 'none'; }
 
-    // Prevent default form behaviour if button is inside a form
-    [registerBtn, loginBtn].forEach(b => { if (b) b.addEventListener('click', e => e.preventDefault()); });
+    // Protect against null in case DOM changed
+    [registerBtn, loginBtn].forEach(b => { if (b) b.addEventListener && b.addEventListener('click', e => e.preventDefault()); });
+
+    // ------------ Map: demo + live loader (robust) ------------
+    // If GOOGLE_MAPS_KEY is not set, show a demo SVG map. If set, load real map.
+    function initMap() {
+      // call this when you want the map to appear
+      if (!GOOGLE_MAPS_KEY || GOOGLE_MAPS_KEY === "REPLACE_GOOGLE_MAPS_KEY") {
+        showDemoMap();
+        return;
+      }
+      if (window.google && window.google.maps) return initMapOnce();
+      const script = document.createElement('script');
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_KEY}&libraries=places&callback=initMapOnce`;
+      script.async = true;
+      script.defer = true;
+      script.onerror = () => {
+        const mapEl = $('map');
+        if (mapEl) mapEl.innerText = "Failed to load Google Maps. Check key and network.";
+      };
+      document.head.appendChild(script);
+    }
+
+    window.initMapOnce = async function() {
+      try {
+        const mapEl = $('map');
+        if (!mapEl) return;
+        mapEl.innerHTML = '';
+        // get location
+        let center;
+        try {
+          const pos = await new Promise((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(p => resolve(p.coords), err => reject(err), {timeout:10000});
+          });
+          center = { lat: pos.latitude, lng: pos.longitude };
+        } catch (err) {
+          console.warn('Geolocation failed or blocked, using fallback location', err);
+          center = { lat: 28.6139, lng: 77.2090 }; // New Delhi fallback
+          const fallbackNote = document.createElement('div');
+          fallbackNote.style.color = '#666';
+          fallbackNote.style.marginBottom = '8px';
+          fallbackNote.innerText = 'Using default location (geolocation blocked). Allow location for nearby results.';
+          mapEl.appendChild(fallbackNote);
+        }
+
+        map = new google.maps.Map(mapEl, { center, zoom: 14, streetViewControl:false, mapTypeControl:false });
+        new google.maps.Marker({ position: center, map, title: "You are here", icon: { path: google.maps.SymbolPath.CIRCLE, scale:7, fillColor:'#1565c0', fillOpacity:1, strokeWeight:0 } });
+
+        const service = new google.maps.places.PlacesService(map);
+
+        // create/clear pharmacy list
+        let listEl = $('pharmList');
+        if (!listEl) {
+          listEl = document.createElement('div');
+          listEl.id = 'pharmList';
+          listEl.style.marginTop = '12px';
+          // append below map
+          mapEl.parentElement.appendChild(listEl);
+        }
+        listEl.innerHTML = '<em>Searching nearby pharmacies...</em>';
+
+        service.nearbySearch({ location:center, radius:3000, type: 'pharmacy' }, (results, status) => {
+          if (status !== google.maps.places.PlacesServiceStatus.OK || !results || !results.length) {
+            listEl.innerHTML = '<div style="color:#666">No nearby pharmacies found.</div>';
+            return;
+          }
+          listEl.innerHTML = '';
+          const bounds = new google.maps.LatLngBounds();
+          const limited = results.slice(0,20);
+          limited.forEach(place => {
+            const marker = new google.maps.Marker({ position: place.geometry.location, map, title: place.name });
+            bounds.extend(place.geometry.location);
+
+            const item = document.createElement('div');
+            item.className = 'doctor';
+            item.style.display = 'flex';
+            item.style.justifyContent = 'space-between';
+            item.style.alignItems = 'center';
+
+            const left = document.createElement('div');
+            left.style.flex = '1';
+            const title = document.createElement('div'); title.style.fontWeight='700'; title.innerText = place.name;
+            const vicinity = document.createElement('div'); vicinity.style.fontSize='13px'; vicinity.style.color='#555'; vicinity.innerText = place.vicinity || '';
+            const meta = document.createElement('div'); meta.style.fontSize='13px'; meta.style.color='#666'; meta.innerText = (place.rating ? `⭐ ${place.rating} • ` : '') + (place.user_ratings_total ? `${place.user_ratings_total} reviews` : '');
+            left.appendChild(title); left.appendChild(vicinity); left.appendChild(meta);
+
+            const right = document.createElement('div'); right.style.display='flex'; right.style.flexDirection='column'; right.style.alignItems='flex-end'; right.style.gap='8px';
+            const phoneEl = document.createElement('div'); phoneEl.style.fontSize='13px'; phoneEl.style.color='#0b556b'; phoneEl.innerText='Loading phone...';
+            const navLink = document.createElement('a'); navLink.href = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(place.vicinity || place.name)}`; navLink.target='_blank'; navLink.rel='noopener'; navLink.innerText='Navigate'; navLink.style.color='#1565c0'; navLink.style.fontWeight='600';
+            right.appendChild(phoneEl); right.appendChild(navLink);
+
+            item.appendChild(left); item.appendChild(right);
+            listEl.appendChild(item);
+
+            const infowindow = new google.maps.InfoWindow({ content: `<strong>${place.name}</strong><div style="font-size:13px">${place.vicinity || ''}</div>` });
+            marker.addListener('click', () => infowindow.open(map, marker));
+
+            service.getDetails({ placeId: place.place_id, fields: ['formatted_phone_number','opening_hours','website'] }, (det, detStatus) => {
+              if (detStatus === google.maps.places.PlacesServiceStatus.OK && det) {
+                phoneEl.innerText = det.formatted_phone_number || 'Phone not available';
+                if (det.opening_hours) {
+                  meta.innerText += ` • ${det.opening_hours.isOpen ? (det.opening_hours.isOpen() ? 'Open' : 'Closed') : (det.opening_hours.open_now ? (det.opening_hours.open_now ? 'Open' : 'Closed') : '')}`;
+                }
+                if (det.website) { navLink.href = det.website; navLink.innerText = 'Website'; }
+              } else {
+                phoneEl.innerText = 'Phone not available';
+              }
+            });
+          });
+          map.fitBounds(bounds);
+          if (limited.length === 1) map.setZoom(15);
+        });
+
+      } catch (err) {
+        console.error('initMapOnce error', err);
+        const mapEl = $('map');
+        if (mapEl) mapEl.innerText = "Could not load location. Allow location permission or try later.";
+      }
+    };
+
+    // Demo fallback rendering
+    function showDemoMap(){
+      const mapEl = $('map');
+      if (!mapEl) return;
+      mapEl.innerHTML = '';
+      const wrap = document.createElement('div');
+      wrap.style.position='relative';
+      wrap.style.borderRadius = getComputedStyle(mapEl).borderRadius || '8px';
+      wrap.style.overflow='hidden';
+      wrap.style.minHeight='260px';
+      wrap.style.display='flex';
+      wrap.style.alignItems='center';
+      wrap.style.justifyContent='center';
+      wrap.style.background='linear-gradient(180deg,#e9f2ff,#f8fbff)';
+
+      const svg = `<svg width="100%" height="320" viewBox="0 0 1200 400" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="g1" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#dbeeff"/><stop offset="1" stop-color="#f8fbff"/></linearGradient></defs><rect width="100%" height="100%" fill="url(#g1)"/><g stroke="#cde4ff" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.95"><path d="M40 300 C 180 220, 320 330, 460 260 S 740 190, 900 250" /><path d="M60 190 C 220 120, 400 180, 600 140 S 980 80, 1140 120" /></g><g fill="#fff" opacity="0.9"><rect x="80" y="60" width="120" height="80" rx="8"/><rect x="280" y="120" width="140" height="100" rx="10"/><rect x="520" y="70" width="180" height="120" rx="12"/><rect x="840" y="130" width="160" height="90" rx="10"/></g><g fill="#e53935"><g transform="translate(160,210)"><path d="M12 0 C 5.4 0 0 5.4 0 12 C 0 22 12 36 12 36 C 12 36 24 22 24 12 C24 5.4 18.6 0 12 0 Z"/><circle cx="12" cy="12" r="5" fill="#fff"/></g><g transform="translate(560,160)"><path d="M12 0 C 5.4 0 0 5.4 0 12 C 0 22 12 36 12 36 C 12 36 24 22 24 12 C24 5.4 18.6 0 12 0 Z"/><circle cx="12" cy="12" r="5" fill="#fff"/></g><g transform="translate(980,220)"><path d="M12 0 C 5.4 0 0 5.4 0 12 C 0 22 12 36 12 36 C 12 36 24 22 24 12 C24 5.4 18.6 0 12 0 Z"/><circle cx="12" cy="12" r="5" fill="#fff"/></g></g><g transform="translate(40,330)" fill="#0f1724" font-family="Inter,Arial" font-size="18"><text x="0" y="0">Nearby pharmacies (demo)</text></g></svg>`;
+
+      const svgWrap = document.createElement('div');
+      svgWrap.style.width='100%';
+      svgWrap.style.padding='12px';
+      svgWrap.innerHTML = svg;
+
+      const control = document.createElement('div');
+      control.style.position='absolute';
+      control.style.right='12px';
+      control.style.top='12px';
+      control.style.zIndex='20';
+      control.style.display='flex';
+      control.style.gap='8px';
+      control.style.alignItems='center';
+
+      const liveBtn = document.createElement('button');
+      liveBtn.textContent = 'Load live map';
+      liveBtn.style.background = '#1565c0';
+      liveBtn.style.color = 'white';
+      liveBtn.style.border = 'none';
+      liveBtn.style.padding = '8px 10px';
+      liveBtn.style.borderRadius = '8px';
+      liveBtn.style.cursor = 'pointer';
+      liveBtn.onclick = () => {
+        if (!GOOGLE_MAPS_KEY || GOOGLE_MAPS_KEY === "REPLACE_GOOGLE_MAPS_KEY") {
+          alert('No Google Maps key found. Set GOOGLE_MAPS_KEY to load live map.');
+          return;
+        }
+        initMap();
+      };
+
+      const info = document.createElement('div');
+      info.style.background = 'rgba(255,255,255,0.9)';
+      info.style.padding = '8px 10px';
+      info.style.borderRadius = '8px';
+      info.style.fontSize = '13px';
+      info.style.color = '#0f1724';
+      info.textContent = 'Demo mode';
+
+      control.appendChild(info);
+      control.appendChild(liveBtn);
+
+      wrap.appendChild(svgWrap);
+      wrap.appendChild(control);
+      mapEl.appendChild(wrap);
+    }
+
+    // ------------ End Map code ------------
 
     // Register flow
     if (registerBtn) {
@@ -539,7 +534,7 @@ function showDemoMap() {
       }
 
       loadDoctorsList().catch(e => console.warn(e));
-      // attempt to init map (will warn if key not replaced)
+      // attempt to init map (will show demo if key not set)
       initMap();
     });
 
@@ -554,7 +549,6 @@ function showDemoMap() {
         const symptoms = raw.split(',').map(s=>s.trim()).filter(Boolean);
         try {
           const idToken = await auth.currentUser.getIdToken(true);
-          const aiResultEl = $('aiResult');
           aiResultEl.style.display = '';
           aiResultEl.innerText = 'Thinking...';
 
@@ -678,48 +672,6 @@ function showDemoMap() {
         console.warn("loadDoctorBookings error:", e);
       }
     }
-
-    // ---------- Map & nearby pharmacies (Google Maps Places) ----------
-    let map;
-    function initMap() {
-      if (!GOOGLE_MAPS_KEY || GOOGLE_MAPS_KEY === "REPLACE_GOOGLE_MAPS_KEY") {
-        console.warn("Google Maps key not replaced. Skipping map load. Replace GOOGLE_MAPS_KEY variable in the top of the script.");
-        return;
-      }
-      if (window.google && window.google.maps) return initMapOnce();
-      const script = document.createElement('script');
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_KEY}&libraries=places&callback=initMapOnce`;
-      script.async = true;
-      script.onerror = () => {
-        document.getElementById('map').innerText = "Failed to load Google Maps. Check key and network.";
-      };
-      document.head.appendChild(script);
-    }
-
-    window.initMapOnce = async function() {
-      try {
-        const mapEl = document.getElementById('map');
-        mapEl.innerHTML = '';
-        const pos = await new Promise((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(p => resolve(p.coords), err => reject(err));
-        });
-        const center = { lat: pos.latitude, lng: pos.longitude };
-        map = new google.maps.Map(mapEl, { center, zoom: 14 });
-        new google.maps.Marker({ position: center, map, title: "You are here" });
-
-        const service = new google.maps.places.PlacesService(map);
-        service.nearbySearch({ location: center, radius: 3000, type: ['pharmacy'] }, (results, status) => {
-          if (status !== google.maps.places.PlacesServiceStatus.OK) return;
-          results.forEach(place => {
-            const marker = new google.maps.Marker({ position: place.geometry.location, map, title: place.name });
-            const infowindow = new google.maps.InfoWindow({ content: `<strong>${place.name}</strong><br/>${place.vicinity}` });
-            marker.addListener('click', () => infowindow.open(map, marker));
-          });
-        });
-      } catch (err) {
-        document.getElementById('map').innerText = "Could not load location. Allow location permission or try later.";
-      }
-    };
   </script>
 </body>
 </html>
