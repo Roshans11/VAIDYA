@@ -160,6 +160,7 @@ nav button:hover {
 /* profile header in dashboard */
 #profileHeader { display:flex; align-items:center; gap:14px; margin-bottom:12px; }
 #profileAvatar { width:72px; height:72px; border-radius:12px; object-fit:cover; border:2px solid rgba(0,0,0,0.06); }
+
   </style>
 
   <!-- Firebase SDKs (compat for simple examples) -->
@@ -167,7 +168,6 @@ nav button:hover {
   <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-storage-compat.js"></script>
-
 </head>
 <body>
   <header>
@@ -197,8 +197,8 @@ nav button:hover {
 
         <input id="password" type="password" placeholder="Password" />
         <div style="display:flex; gap:10px; margin-top:6px;">
-          <button id="loginBtn" style="flex:1;">Login</button>
-          <button id="registerBtn" style="flex:1;background:#0b8b53;">Register</button>
+          <button id="loginBtn" type="button" style="flex:1;">Login</button>
+          <button id="registerBtn" type="button" style="flex:1;background:#0b8b53;">Register</button>
         </div>
       </div>
 
@@ -226,7 +226,7 @@ nav button:hover {
 
         <div style="display:flex; gap:12px; margin-top:14px;">
           <input id="symptomsInput" placeholder="e.g. fever, cough, headache" style="flex:1;">
-          <button id="askAiBtn">Ask AI</button>
+          <button id="askAiBtn" type="button">Ask AI</button>
         </div>
 
         <div id="aiResult" class="card" style="display:none;margin-top:20px;"></div>
@@ -246,7 +246,7 @@ nav button:hover {
 
         <div style="display:flex; gap:12px; margin-top:14px;">
           <input id="slotsInput" placeholder="2025-11-20:10:00,10:30,11:00" style="flex:1;">
-          <button id="saveSlotsBtn">Save</button>
+          <button id="saveSlotsBtn" type="button">Save</button>
         </div>
 
         <h4 style="margin-top:20px;">Your bookings</h4>
@@ -262,6 +262,10 @@ nav button:hover {
   </div>
 
   <script>
+  // Run initialization after DOM is ready
+  document.addEventListener('DOMContentLoaded', () => {
+    console.log('VAIDYA app starting...');
+
     // ---------- CONFIG: Replace these with your Firebase project keys ----------
     const firebaseConfig = {
       apiKey: "AIzaSyD9x8Y39gxGewZAFXl7DKKKMP7Q7tAsTgg",
@@ -273,14 +277,20 @@ nav button:hover {
       measurementId: "G-RJVYKP6ZDM"
     };
 
-    // Your serverless function base (Netlify or Firebase)
+    // serverless base and map key
     const CF_BASE = "/.netlify/functions";
-
-    // Google Maps key — set to your key to load live map.
     const GOOGLE_MAPS_KEY = "REPLACE_GOOGLE_MAPS_KEY";
 
-    // Initialize Firebase
-    try { firebase.initializeApp(firebaseConfig); } catch(e) { console.error("Firebase init failed:", e); alert("Firebase init failed - check console"); }
+    // Init Firebase
+    try {
+      firebase.initializeApp(firebaseConfig);
+      console.log('Firebase initialized');
+    } catch (e) {
+      console.error('Firebase initialization error', e);
+      alert('Firebase initialization failed - check console');
+      return;
+    }
+
     const auth = firebase.auth();
     const db = firebase.firestore();
     const storage = firebase.storage();
@@ -305,12 +315,10 @@ nav button:hover {
     const show = el => { if (el) el.style.display = ''; }
     const hide = el => { if (el) el.style.display = 'none'; }
 
-    // Prevent default if buttons in forms
-    [registerBtn, loginBtn].forEach(b => { if (b) b && b.addEventListener) b.addEventListener('click', e => e.preventDefault()); });
-
-    // ---------- Register flow (upload profile photo + save user doc) ----------
+    // Register flow — robust + upload profile photo if provided
     if (registerBtn) {
       registerBtn.addEventListener('click', async () => {
+        console.log('Register clicked');
         const email = ($('email')?.value || '').trim();
         const password = ($('password')?.value || '').trim();
         const phone = ($('phone')?.value || '').trim();
@@ -319,8 +327,8 @@ nav button:hover {
 
         try {
           const cred = await auth.createUserWithEmailAndPassword(email, password);
-          const displayName = email.split('@')[0];
-          // set displayName initially
+          console.log('User created', cred.user.uid);
+          const displayName = email.split('@')[0] || '';
           await cred.user.updateProfile({ displayName });
 
           // optional photo upload
@@ -334,15 +342,14 @@ nav button:hover {
               const ref = storage.ref().child(filename);
               const uploadSnap = await ref.put(file);
               photoURL = await uploadSnap.ref.getDownloadURL();
-              // update auth profile with photoURL
               await cred.user.updateProfile({ photoURL });
+              console.log('Photo uploaded', photoURL);
             } catch (upErr) {
               console.warn("Photo upload failed:", upErr);
-              // continue registration without blocking
             }
           }
 
-          // Save user doc with photoURL if present
+          // save user doc
           await db.collection('users').doc(cred.user.uid).set({
             displayName: displayName,
             email,
@@ -358,11 +365,14 @@ nav button:hover {
           alert("Register error: " + (err.message || err));
         }
       });
+    } else {
+      console.warn('registerBtn not found in DOM');
     }
 
-    // ---------- Login flow ----------
+    // Login flow
     if (loginBtn) {
       loginBtn.addEventListener('click', async () => {
+        console.log('Login clicked');
         const email = ($('email')?.value || '').trim();
         const password = ($('password')?.value || '').trim();
         if (!email || !password) return alert("Enter email and password to login.");
@@ -370,27 +380,29 @@ nav button:hover {
         try {
           const cred = await auth.signInWithEmailAndPassword(email, password);
           console.log("Logged in:", cred.user.uid);
-          alert("Login successful.");
+          // do not reload – auth.onAuthStateChanged will update UI
         } catch (err) {
           console.error("Login error:", err);
           alert("Login error: " + (err.message || err));
         }
       });
+    } else {
+      console.warn('loginBtn not found in DOM');
     }
 
-    // ---------- Observe auth state ----------
+    // Observe auth state
     auth.onAuthStateChanged(async (user) => {
+      console.log('onAuthStateChanged', !!user);
       if (!user) {
         show(authArea);
         hide(mainApp);
         nav.innerHTML = '';
         hide(doctorsList);
-        // clear profile header
         if (profileHeader) profileHeader.style.display = 'none';
         return;
       }
 
-      // fetch user doc
+      // load user document
       let profile = { role: 'patient', displayName: user.email?.split('@')[0] || '' };
       try {
         const udoc = await db.collection('users').doc(user.uid).get();
@@ -399,7 +411,6 @@ nav button:hover {
         console.warn("Could not load user doc:", e);
       }
 
-      // determine avatar/url and display name
       const avatarUrl = profile.photoURL || profile.photo || user.photoURL || '';
       const safeName = (profile.displayName || user.displayName || user.email?.split('@')[0] || 'User');
 
@@ -408,14 +419,13 @@ nav button:hover {
         <div style="display:flex;align-items:center;gap:10px;">
           <img id="navAvatar" src="${avatarUrl || 'data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2236%22 height=%2236%22 viewBox=%220 0 24 24%22><circle cx=%2212%22 cy=%2212%22 r=%2210%22 fill=%22%231565c0%22/><text x=%2250%25%22 y=%2258%25%22 font-size=%2211%22 fill=%22white%22 text-anchor=%22middle%22 dominant-baseline=%22middle%22>${encodeURIComponent(safeName.charAt(0).toUpperCase())}</text></svg>'}" alt="avatar" style="width:36px;height:36px;border-radius:50%;object-fit:cover;border:2px solid rgba(255,255,255,0.12)" />
           <span style="color:white;font-weight:600">${safeName}</span>
-          <button id="logoutBtn" style="margin-left:12px;background:transparent;border:1px solid rgba(255,255,255,0.18);color:white;padding:8px 10px;border-radius:8px;cursor:pointer">Logout</button>
+          <button id="logoutBtn" type="button" style="margin-left:12px;background:transparent;border:1px solid rgba(255,255,255,0.18);color:white;padding:8px 10px;border-radius:8px;cursor:pointer">Logout</button>
         </div>
       `;
-      // attach logout handler safely
       const lb = document.getElementById('logoutBtn');
       if (lb) lb.addEventListener('click', async () => { await auth.signOut(); location.reload(); });
 
-      // update dashboard profile header
+      // profile header in dashboard
       if (profileHeader) {
         if (profileAvatar) profileAvatar.src = avatarUrl || '';
         if (profileName) profileName.textContent = safeName;
@@ -436,7 +446,8 @@ nav button:hover {
       }
 
       loadDoctorsList().catch(e => console.warn(e));
-      initMap(); // map will show demo if key not set
+      // init map (demo or live)
+      initMap();
     });
 
     window.logout = async () => { try { await auth.signOut(); location.reload(); } catch (e) { console.warn(e); } };
@@ -474,7 +485,7 @@ nav button:hover {
               <div class="doctor">
                 <strong>${d.name}</strong> — ${d.specialty || 'N/A'} <br/>
                 Phone: ${d.phone || 'N/A'} <br/>
-                <button onclick='bookDoctor("${d.id}")'>Book</button>
+                <button onclick='bookDoctor("${d.id}")' type="button">Book</button>
               </div>`).join('');
             aiResultEl.innerHTML += `<h4>Related doctors</h4>${html}`;
           }
@@ -493,7 +504,7 @@ nav button:hover {
           const data = d.data();
           return `<div class="doctor card">
             <strong>${data.name || 'Unnamed'}</strong> — ${data.specialty || ''}<br/>Phone: ${data.phone || ''}<br/>
-            <button onclick='bookDoctor("${d.id}")'>Book</button>
+            <button onclick='bookDoctor("${d.id}")' type="button">Book</button>
           </div>`;
         }).join('');
         doctorsContainer.innerHTML = html || '<p>No verified doctors yet.</p>';
@@ -598,7 +609,6 @@ nav button:hover {
         const mapEl = $('map');
         if (!mapEl) return;
         mapEl.innerHTML = '';
-        // get location
         let center;
         try {
           const pos = await new Promise((resolve, reject) => {
@@ -620,7 +630,6 @@ nav button:hover {
 
         const service = new google.maps.places.PlacesService(map);
 
-        // create/clear pharmacy list
         let listEl = $('pharmList');
         if (!listEl) {
           listEl = document.createElement('div');
@@ -670,7 +679,6 @@ nav button:hover {
               if (detStatus === google.maps.places.PlacesServiceStatus.OK && det) {
                 phoneEl.innerText = det.formatted_phone_number || 'Phone not available';
                 if (det.opening_hours) {
-                  // opening_hours API differs; be tolerant
                   if (typeof det.opening_hours.isOpen === 'function') {
                     meta.innerText += ` • ${det.opening_hours.isOpen() ? 'Open' : 'Closed'}`;
                   } else if (typeof det.opening_hours.open_now !== 'undefined') {
@@ -727,6 +735,7 @@ nav button:hover {
 
       const liveBtn = document.createElement('button');
       liveBtn.textContent = 'Load live map';
+      liveBtn.type = 'button';
       liveBtn.style.background = '#1565c0';
       liveBtn.style.color = 'white';
       liveBtn.style.border = 'none';
@@ -756,8 +765,10 @@ nav button:hover {
       wrap.appendChild(control);
       mapEl.appendChild(wrap);
     }
-    // ------------ End Map code ------------
 
+    // End DOMContentLoaded
+    console.log('VAIDYA app ready');
+  }); // DOMContentLoaded end
   </script>
 </body>
 </html>
