@@ -5,18 +5,149 @@
   <title>VAIDYA - Demo</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
-    /* Minimal clean styles - extend as needed */
-    body { font-family: system-ui, Arial; margin: 0; background:#f6f8fa; color:#222; }
-    header { background:#1565c0; color:white; padding:16px; display:flex; align-items:center; justify-content:space-between;}
-    .container { padding: 20px; max-width:1000px; margin: 0 auto;}
-    .card { background:white; padding:16px; border-radius:8px; box-shadow:0 1px 6px rgba(0,0,0,0.08); margin-bottom:16px;}
-    input, select, textarea, button { padding:8px; border:1px solid #cbd5e1; border-radius:6px; font-size:14px; }
-    .flex { display:flex; gap:12px; flex-wrap:wrap; }
-    .map { height:300px; width:100%; border-radius:8px;}
-    nav button { background:transparent; color:white; border:none; cursor:pointer; margin-left:8px;}
-    .doctor { border-left:4px solid #1565c0; padding-left:12px; margin-bottom:8px;}
-    .slot { display:inline-block; padding:6px 8px; margin:4px; background:#e6f2ff; border-radius:6px; cursor:pointer;}
-    pre { white-space: pre-wrap; word-wrap: break-word; }
+   /* ----------------- GLOBAL STYLES ------------------ */
+body {
+  font-family: "Inter", system-ui, Arial;
+  margin: 0;
+  background: linear-gradient(135deg, #e3f2fd 0%, #fdfdfd 100%);
+  color: #222;
+}
+
+header {
+  background: linear-gradient(90deg, #1565c0, #0d47a1);
+  color: white;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.15);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+/* Center container */
+.container {
+  padding: 20px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+/* Beautiful card */
+.card {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(8px);
+  padding: 20px;
+  border-radius: 14px;
+  box-shadow: 0 8px 25px rgba(0,0,0,0.07);
+  margin-bottom: 22px;
+  border: 1px solid rgba(255,255,255,0.4);
+}
+
+/* Inputs */
+input, select, textarea {
+  padding: 12px;
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  font-size: 14px;
+  transition: 0.2s;
+}
+
+input:focus, select:focus {
+  border-color: #1565c0;
+  box-shadow: 0 0 6px rgba(21,101,192,0.4);
+  outline: none;
+}
+
+/* Buttons */
+button {
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  transition: 0.2s;
+}
+
+#registerBtn, #loginBtn, #askAiBtn, #saveSlotsBtn {
+  background: #1565c0;
+  color: white;
+}
+
+button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(21,101,192,0.3);
+}
+
+/* Login section modern look */
+#authArea {
+  max-width: 450px;
+  margin: 40px auto;
+  text-align: center;
+}
+
+#authArea h3 {
+  font-size: 22px;
+  margin-bottom: 20px;
+}
+
+/* Dashboard titles */
+#patientDashboard h3,
+#doctorDashboard h3 {
+  font-weight: 700;
+  font-size: 22px;
+  margin-bottom: 14px;
+}
+
+/* Doctor Cards */
+.doctor {
+  padding: 12px;
+  border-radius: 10px;
+  background: #f5f9ff;
+  border-left: 5px solid #1565c0;
+  margin-bottom: 15px;
+}
+
+.doctor strong {
+  font-size: 17px;
+}
+
+/* AI result box */
+#aiResult {
+  background: #e8f3ff;
+  border-left: 4px solid #1565c0;
+}
+
+/* Flex */
+.flex {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* Map */
+.map {
+  border-radius: 12px;
+}
+
+/* Verified Doctors Section */
+#doctorsList h3 {
+  font-size: 20px;
+  margin-bottom: 10px;
+}
+
+nav button {
+  background: transparent;
+  color: white;
+  border: 1px solid rgba(255,255,255,0.4);
+  padding: 8px 12px;
+  border-radius: 8px;
+}
+
+nav button:hover {
+  background: rgba(255,255,255,0.2);
+}
+
   </style>
 
   <!-- Firebase SDKs (compat for simple examples) -->
@@ -32,29 +163,51 @@
 
   <div class="container">
     <div id="authArea" class="card">
-      <h3>Sign in / Register</h3>
-      <div class="flex">
-        <input id="email" placeholder="Email" />
-        <input id="phone" placeholder="Phone" />
-        <select id="role">
-          <option value="patient">Patient</option>
-          <option value="doctor">Doctor</option>
-        </select>
-        <input id="password" type="password" placeholder="Password" />
-        <button id="registerBtn">Register</button>
-        <button id="loginBtn">Login</button>
-      </div>
+  <h3>Welcome to VAIDYA</h3>
+  <p style="color:#555;margin-top:-10px;margin-bottom:20px;">
+    Sign in or create an account to continue
+  </p>
+
+  <div style="display:flex; flex-direction:column; gap:14px;">
+    
+    <input id="email" placeholder="Email address" />
+
+    <input id="phone" placeholder="Phone number" />
+
+    <select id="role">
+      <option value="patient">Patient</option>
+      <option value="doctor">Doctor</option>
+    </select>
+
+    <input id="password" type="password" placeholder="Password" />
+
+    <div style="display:flex; gap:10px; margin-top:10px;">
+      <button id="loginBtn" style="flex:1;">Login</button>
+      <button id="registerBtn" style="flex:1;background:#0b8b53;">Register</button>
+    </div>
+
+  </div>
+</div>
+
       <p style="margin-top:8px;color:#555;font-size:13px;">Note: Make sure Email/Password sign-in is enabled in Firebase Console.</p>
     </div>
 
     <div id="mainApp" style="display:none">
       <div id="patientDashboard" class="card" style="display:none">
         <h3>Patient Dashboard</h3>
-        <div>
-          <label>Describe your symptoms (comma separated)</label><br/>
-          <input id="symptomsInput" style="width:80%"/>
-          <button id="askAiBtn">Get Suggestions (AI)</button>
-        </div>
+        
+
+<p style="color:#444;margin-top:-10px;">
+  Describe your symptoms and get instant smart suggestions.
+</p>
+
+<div style="display:flex; gap:12px; margin-top:14px;">
+  <input id="symptomsInput" placeholder="e.g. fever, cough, headache" style="flex:1;">
+  <button id="askAiBtn">Ask AI</button>
+</div>
+
+<div id="aiResult" class="card" style="display:none;margin-top:20px;"></div>
+
         <div id="aiResult" class="card" style="display:none;"></div>
 
         <h4>Nearby pharmacies</h4>
@@ -63,11 +216,19 @@
 
       <div id="doctorDashboard" class="card" style="display:none">
         <h3>Doctor Dashboard</h3>
-        <div>
-          <label>Set available slots (example: 2025-11-20:09:00,09:30)</label><br/>
-          <input id="slotsInput" placeholder="date:hh:mm,hh:mm" />
-          <button id="saveSlotsBtn">Save Slots</button>
-        </div>
+
+<p style="color:#444;margin-top:-10px;">
+  Update your available consultation slots.
+</p>
+
+<div style="display:flex; gap:12px; margin-top:14px;">
+  <input id="slotsInput" placeholder="2025-11-20:10:00,10:30,11:00" style="flex:1;">
+  <button id="saveSlotsBtn">Save</button>
+</div>
+
+<h4 style="margin-top:20px;">Your Bookings</h4>
+<div id="doctorBookings"></div>
+
         <h4>Your bookings</h4>
         <div id="doctorBookings"></div>
       </div>
